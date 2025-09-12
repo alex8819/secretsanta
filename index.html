@@ -1,0 +1,651 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Secret Santa – Semplice</title>
+    <style>
+      :root {
+        --bg: #0b1020;
+        --panel: #0f172a;
+        --muted: #a3b1c6;
+        --text: #eef2f7;
+        --accent: #ef4444;  /* red */
+        --accent-2: #22c55e; /* green */
+        --danger: #ef4444;
+        --ok: #22c55e;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+        background:
+          radial-gradient(1200px 800px at 10% 10%, #0b122d 0%, var(--bg) 60%),
+          radial-gradient(1200px 800px at 90% 10%, rgba(255,255,255,0.03), rgba(0,0,0,0));
+        color: var(--text);
+        min-height: 100vh;
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+      }
+      header, footer {
+        padding: 16px;
+        text-align: center;
+        color: var(--muted);
+        position: relative;
+        z-index: 2;
+      }
+      h1 {
+        margin: 0 0 6px 0;
+        font-size: 24px;
+        color: var(--text);
+      }
+      .panel {
+        width: 100%;
+        max-width: 880px;
+        margin: 16px auto;
+        background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 14px;
+        padding: 16px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+        position: relative;
+        z-index: 2;
+      }
+      .row { display: grid; gap: 10px; }
+      @media (min-width: 720px) { .row.cols-2 { grid-template-columns: 1fr 1fr; } }
+      label { color: var(--muted); font-size: 14px; }
+      textarea, input[type=text] {
+        width: 100%;
+        background: #0b1220;
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 10px;
+        color: var(--text);
+        padding: 12px;
+        outline: none;
+      }
+      textarea { min-height: 180px; resize: vertical; }
+      .hint { color: var(--muted); font-size: 13px; }
+      .btns { display: flex; gap: 10px; flex-wrap: wrap; }
+      button {
+        /* Monocolore con sfumatura di una sola tinta (rosso) */
+        background: linear-gradient(135deg, #f87171, #b91c1c);
+        color: #ffffff;
+        border: none;
+        border-radius: 10px;
+        padding: 10px 14px;
+        cursor: pointer;
+        font-weight: 600;
+      }
+      button.green { background: linear-gradient(135deg, #34d399, #166534); color: #ffffff; }
+      button.secondary {
+        background: transparent;
+        color: var(--text);
+        border: 1px solid rgba(255,255,255,0.18);
+      }
+      button.danger {
+        background: linear-gradient(135deg, #f87171, #7f1d1d);
+        color: #ffffff;
+      }
+      .center { text-align: center; }
+      .hidden { display: none !important; }
+      .big { font-size: 28px; font-weight: 800; letter-spacing: 0.3px; }
+      .name-badge {
+        display: inline-block;
+        padding: 10px 14px;
+        border-radius: 12px;
+        background: #0b1220;
+        border: 1px dashed rgba(255,255,255,0.12);
+      }
+      .step {
+        display: grid; gap: 14px; align-items: start;
+      }
+      .spacer { height: 6px; }
+      .divider { height: 1px; background: rgba(255,255,255,0.08); margin: 6px 0; }
+      .success { color: var(--ok); }
+      .error { color: #fecaca; }
+      .error-field { border-color: rgba(239,68,68,0.8) !important; box-shadow: 0 0 0 2px rgba(239,68,68,0.15) inset; }
+      .narrow { max-width: 520px; margin: 0 auto; }
+      .big-input { font-size: 28px; padding: 14px 16px !important; height: 56px; }
+      .narrow .person-name { max-width: 420px; margin: 0 auto; }
+      .narrow label { text-align: center; }
+
+      /* Removed viewer banner styles */
+
+      /* Simple snow overlay */
+      .snow { pointer-events: none; position: fixed; inset: 0; z-index: 0; opacity: 0.35; }
+      .snow:before, .snow:after {
+        content: ""; position: absolute; inset: -100px 0 0 0; background-repeat: repeat; animation: snow 18s linear infinite;
+      }
+      .snow:before {
+        background-image: radial-gradient(2px 2px at 20px 30px, rgba(255,255,255,0.8) 50%, transparent 51%),
+                          radial-gradient(3px 3px at 80px 120px, rgba(255,255,255,0.7) 50%, transparent 51%),
+                          radial-gradient(2px 2px at 150px 90px, rgba(255,255,255,0.8) 50%, transparent 51%);
+        background-size: 200px 200px;
+      }
+      .snow:after {
+        background-image: radial-gradient(2px 2px at 50px 80px, rgba(255,255,255,0.6) 50%, transparent 51%),
+                          radial-gradient(3px 3px at 130px 40px, rgba(255,255,255,0.6) 50%, transparent 51%),
+                          radial-gradient(2px 2px at 170px 160px, rgba(255,255,255,0.6) 50%, transparent 51%);
+        background-size: 220px 220px; animation-duration: 24s;
+      }
+      @keyframes snow { from { transform: translateY(-100px); } to { transform: translateY(200px); } }
+
+      /* Xmas background characters (behind content) */
+      .xmas-bg { position: fixed; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
+      .xmas-emoji { position: absolute; filter: drop-shadow(0 4px 10px rgba(0,0,0,0.35)); opacity: 0.15; }
+      .reindeer { font-size: 64px; bottom: -8px; left: -80px; animation: run-deer 28s linear infinite; }
+      .santa-left { font-size: 72px; left: -60px; bottom: 80px; animation: peek-left 22s ease-in-out infinite; }
+      .santa-right { font-size: 72px; right: -60px; top: 120px; animation: peek-right 25s ease-in-out infinite; }
+      .sleigh { font-size: 56px; top: 40px; left: -80px; animation: sleigh-fly 40s linear infinite; }
+      .comet { font-size: 36px; top: 10%; left: -10%; animation: comet-move 24s linear infinite; transform: rotate(-30deg); }
+      .comet.delay-1 { animation-delay: 6s; top: 20%; }
+      .comet.delay-2 { animation-delay: 12s; top: 35%; }
+      .gift { font-size: 40px; bottom: 20px; animation: gift-bob 7s ease-in-out infinite; }
+      .gift.pos-1 { left: 12%; animation-delay: 1s; }
+      .gift.pos-2 { left: 78%; animation-delay: 3s; }
+      .tree { font-size: 64px; bottom: 0; animation: tree-sway 3.5s ease-in-out infinite alternate; }
+      .tree.left { left: 2%; }
+      .tree.right { right: 2%; }
+
+      @keyframes run-deer {
+        0%   { transform: translateX(0) translateY(0) rotate(0deg); }
+        20%  { transform: translateX(25vw) translateY(-4px) rotate(2deg); }
+        40%  { transform: translateX(50vw) translateY(0) rotate(0deg); }
+        60%  { transform: translateX(75vw) translateY(-4px) rotate(-2deg); }
+        80%  { transform: translateX(100vw) translateY(0) rotate(0deg); }
+        100% { transform: translateX(120vw) translateY(0) rotate(0deg); }
+      }
+      @keyframes peek-left {
+        0%, 60%, 100% { transform: translateX(0); opacity: 0.0; }
+        10%, 20% { transform: translateX(40px); opacity: 0.15; }
+        30% { transform: translateX(0); opacity: 0.0; }
+      }
+      @keyframes peek-right {
+        0%, 50%, 100% { transform: translateX(0); opacity: 0.0; }
+        15%, 25% { transform: translateX(-40px); opacity: 0.15; }
+        35% { transform: translateX(0); opacity: 0.0; }
+      }
+      @keyframes sleigh-fly {
+        0% { transform: translateX(0) translateY(0); }
+        50% { transform: translateX(60vw) translateY(-12px); }
+        100% { transform: translateX(120vw) translateY(0); }
+      }
+      @keyframes comet-move {
+        0% { transform: translateX(0) translateY(0) rotate(-30deg); }
+        100% { transform: translateX(120vw) translateY(40vh) rotate(-30deg); }
+      }
+      @keyframes gift-bob {
+        0%, 100% { transform: translateY(0) rotate(0deg); }
+        50% { transform: translateY(-8px) rotate(2deg); }
+      }
+      @keyframes tree-sway {
+        0% { transform: rotate(-2deg); }
+        100% { transform: rotate(2deg); }
+      }
+      /* Landing icon */
+      .landing-icon {
+        font-size: 88px;
+        line-height: 1;
+        margin: 6px auto 2px auto;
+        width: fit-content;
+        filter: drop-shadow(0 8px 20px rgba(0,0,0,0.35));
+        animation: bob 3.5s ease-in-out infinite;
+      }
+      .setup-icon {
+        font-size: 56px;
+        line-height: 1;
+        margin: 6px auto 0 auto;
+        width: fit-content;
+        filter: drop-shadow(0 6px 14px rgba(0,0,0,0.35));
+        animation: bob 3.5s ease-in-out infinite;
+      }
+      @keyframes bob {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-8px); }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="snow" aria-hidden="true"></div>
+    <div class="xmas-bg" aria-hidden="true">
+      <div class="xmas-emoji reindeer">🦌</div>
+      <div class="xmas-emoji santa-left">🎅</div>
+      <div class="xmas-emoji santa-right">🎅</div>
+      <div class="xmas-emoji sleigh">🛷</div>
+      <div class="xmas-emoji comet">☄️</div>
+      <div class="xmas-emoji comet delay-1">☄️</div>
+      <div class="xmas-emoji comet delay-2">☄️</div>
+      <div class="xmas-emoji gift pos-1">🎁</div>
+      <div class="xmas-emoji gift pos-2">🎁</div>
+      <div class="xmas-emoji tree left">🎄</div>
+      <div class="xmas-emoji tree right">🎄</div>
+    </div>
+    <header>
+      <h1>🎄 Secret Santa</h1>
+      <div class="hint">Versione senza email – pass-the-device</div>
+    </header>
+
+    <main class="panel">
+      <!-- Landing: spiegazione breve -->
+      <section id="step-landing" class="step center">
+        <div class="big" style="margin-bottom:6px">Cos'è il Secret Santa?</div>
+        <div class="hint" style="max-width:680px; margin:0 auto 10px auto">
+          Un gioco tra amici: ognuno fa un regalo a una persona scelta a caso nel gruppo.
+          Tu scopri solo a chi fare il dono. Obiettivo: tutti ricevono il proprio regalo, in modo semplice e divertente.
+        </div>
+        <div class="landing-icon" role="img" aria-label="Regalo">🎁</div>
+        <div class="spacer"></div>
+        <button id="btn-start" class="green" type="button" style="min-width:180px; font-size:18px;">INIZIA!</button>
+      </section>
+      <!-- Step 1: Inserimento partecipanti -->
+      <section id="step-setup" class="step hidden">
+        <div id="setup-intro" class="center">
+          <div class="big" style="margin-bottom:8px">Quanti siete nel gruppo?</div>
+          <input id="count" class="big-input" type="number" inputmode="numeric" pattern="[0-9]*" min="2" max="200" placeholder="es. 6" style="max-width:240px; text-align:center; display:block; margin:0 auto;" />
+          <div class="setup-icon" role="img" aria-label="Gruppo di amici">🧑‍🤝‍🧑</div>
+          <div class="spacer"></div>
+          <button id="btn-continue" class="green" type="button" style="min-width:160px;">Continua</button>
+          <div id="setup-error" class="error hidden" style="margin-top:8px"></div>
+        </div>
+
+        <div id="setup-forms" class="hidden">
+          <div class="big center" style="margin: 6px 0 6px">Lista delle persone</div>
+          <div class="spacer"></div>
+          <div class="narrow">
+            <div id="people-list" class="row" style="gap:8px;"></div>
+          </div>
+          <div class="btns" style="margin-top:6px; justify-content:center;">
+            <button id="btn-generate" class="green">Crea abbinamenti</button>
+            <button id="btn-reset" class="secondary danger" type="button">Azzera</button>
+          </div>
+          <div id="setup-error-forms" class="error hidden" style="margin-top:8px"></div>
+          <div class="divider"></div>
+          <div class="hint">Compila i nomi dei partecipanti e poi premi “Crea abbinamenti”.</div>
+        </div>
+      </section>
+
+      <!-- Step 2: Flusso di rivelazione per singola persona -->
+      <section id="step-reveal" class="step hidden">
+        <div id="reveal-progress" class="hint"></div>
+
+        <div id="handoff" class="center">
+          <div id="dear-line" class="hint hidden">Caro <span id="dear-name" class="name-badge" style="font-size:16px; font-weight:700; padding:6px 10px;"></span>,</div>
+          <div>Passa il dispositivo a</div>
+          <div id="current-person" class="big name-badge">—</div>
+          <div class="spacer"></div>
+          <button id="btn-i-am">Sono questa persona</button>
+          <div class="spacer"></div>
+          <button id="btn-back-to-start" class="secondary" type="button">Torna all'inizio</button>
+        </div>
+
+        <div id="peek" class="center hidden">
+          <button id="btn-toggle" type="button">Mostra il nome</button>
+          <div id="peek-who" class="hint" style="margin-top:6px">Sei Babbo <span id="peek-who-name" class="name-badge" style="font-size:16px; font-weight:700; padding:6px 10px;">—</span></div>
+          <div id="result-line" class="big hidden" aria-live="polite">Farai il regalo a <span id="result" class="name-badge"></span></div>
+          <div class="spacer"></div>
+          <div class="btns center" style="justify-content:center">
+            <button id="btn-next" class="green hidden" type="button">Passa il dispositivo a …</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Step 3: Fine -->
+      <section id="step-done" class="step center hidden">
+        <div class="big success">Tutto fatto! 🎁</div>
+        <div class="hint">Ognuno ha il proprio destinatario. Buon Secret Santa!</div>
+        <div class="spacer"></div>
+        <div class="btns" style="justify-content:center">
+          <button id="btn-restart">Nuovo gruppo</button>
+          <button id="btn-back-recap" class="secondary">Rivedi passaggi</button>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <span class="hint">Niente dati inviati online. Tutto avviene sul dispositivo.</span>
+    </footer>
+
+    <script>
+      // Stato dell'applicazione
+      const state = {
+        participants: [],    // ["Anna", "Marco", ...]
+        recipients: [],      // derangement parallelo a participants
+        index: 0,            // posizione corrente nella sequenza di rivelazione
+        order: []            // ordine random di rivelazione: array di indici dei partecipanti
+      };
+      // Conferma singola per la rivelazione
+      let confirmPending = false;
+
+      function resetRevealConfirm() {
+        // azzera solo lo stato della conferma, non il testo del bottone
+        confirmPending = false;
+      }
+
+      // Utilità: pulizia testo in array di nomi
+      function parseNames(raw) {
+        return raw
+          .split(/\r?\n|,|;|\t/g)
+          .map(s => s.trim())
+          .filter(s => s.length > 0);
+      }
+
+      // Algoritmo di derangement: nessuno riceve se stesso.
+      // Metodo: shuffle con fix locale dei punti fissi.
+      function derangement(list) {
+        const n = list.length;
+        const arr = list.slice();
+        for (let i = 0; i < n; i++) {
+          const j = i + Math.floor(Math.random() * (n - i));
+          [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        for (let i = 0; i < n; i++) {
+          if (arr[i] === list[i]) {
+            const k = (i + 1) % n;
+            [arr[i], arr[k]] = [arr[k], arr[i]];
+          }
+        }
+        // Verifica (fallback rarissimo)
+        for (let i = 0; i < n; i++) {
+          if (arr[i] === list[i]) {
+            // Se capita, riprova ricorsivamente.
+            return derangement(list);
+          }
+        }
+        return arr;
+      }
+
+      // Riferimenti DOM
+      const $ = (sel) => document.querySelector(sel);
+      const stepSetup = $('#step-setup');
+      const stepLanding = $('#step-landing');
+      const stepReveal = $('#step-reveal');
+      const stepDone = $('#step-done');
+      const countInput = $('#count');
+      const peopleList = $('#people-list');
+      const errorBox = $('#setup-error');
+      const errorBoxForms = $('#setup-error-forms');
+      const btnGenerate = $('#btn-generate');
+      // rimosso btn-fill-demo
+      const btnReset = $('#btn-reset');
+      const setupIntro = $('#setup-intro');
+      const setupForms = $('#setup-forms');
+      const btnContinue = $('#btn-continue');
+
+      const progress = $('#reveal-progress');
+      const handoff = $('#handoff');
+      const dearLine = $('#dear-line');
+      const dearNameEl = $('#dear-name');
+      const currentPersonEl = $('#current-person');
+      const btnIAm = $('#btn-i-am');
+      const btnBackToStart = $('#btn-back-to-start');
+
+      const peek = $('#peek');
+      const peekWhoName = $('#peek-who-name');
+      const resultLine = $('#result-line');
+      const btnToggle = $('#btn-toggle');
+      const btnNext = $('#btn-next');
+      const result = $('#result');
+
+      const btnRestart = $('#btn-restart');
+      const btnBackRecap = $('#btn-back-recap');
+      const btnStart = $('#btn-start');
+
+      // Haptics
+      function vibrate(pattern) {
+        try { if (navigator.vibrate) navigator.vibrate(pattern); } catch (_) {}
+      }
+
+      // Navigazione step
+      function goToLanding() {
+        stepLanding.classList.remove('hidden');
+        stepSetup.classList.add('hidden');
+        stepReveal.classList.add('hidden');
+        stepDone.classList.add('hidden');
+      }
+      function goToSetup() {
+        stepLanding.classList.add('hidden');
+        stepSetup.classList.remove('hidden');
+        stepReveal.classList.add('hidden');
+        stepDone.classList.add('hidden');
+        errorBox.classList.add('hidden');
+        if (errorBoxForms) errorBoxForms.classList.add('hidden');
+        setupIntro.classList.remove('hidden');
+        setupForms.classList.add('hidden');
+      }
+      function goToReveal() {
+        stepSetup.classList.add('hidden');
+        stepReveal.classList.remove('hidden');
+        stepDone.classList.add('hidden');
+      }
+      function goToDone() {
+        stepSetup.classList.add('hidden');
+        stepReveal.classList.add('hidden');
+        stepDone.classList.remove('hidden');
+      }
+
+      // UI Reveal: setup per persona corrente
+      function updateProgress() {
+        progress.textContent = `Persona ${state.index + 1} di ${state.participants.length}`;
+      }
+      function setupHandoff() {
+        updateProgress();
+        const curIdx = state.order[state.index];
+        const name = state.participants[curIdx];
+        currentPersonEl.textContent = name;
+        // Mostra "Caro X" riferito alla persona precedente, se presente
+        if (state.index > 0) {
+          const prevIdx = state.order[state.index - 1];
+          dearNameEl.textContent = state.participants[prevIdx];
+          dearLine.classList.remove('hidden');
+        } else {
+          dearLine.classList.add('hidden');
+        }
+        handoff.classList.remove('hidden');
+        peek.classList.add('hidden');
+        // non tocchiamo l'elemento #result direttamente; usiamo il contenitore
+        btnNext.classList.add('hidden');
+        resetRevealConfirm();
+        if (btnToggle) btnToggle.textContent = 'Mostra il nome';
+      }
+      function setupPeek() {
+        handoff.classList.add('hidden');
+        peek.classList.remove('hidden');
+        // Mostra chiaramente chi sta guardando ora
+        const curIdx = state.order[state.index];
+        peekWhoName.textContent = state.participants[curIdx];
+        resultLine.classList.add('hidden');
+        btnNext.classList.add('hidden');
+        resetRevealConfirm();
+        if (btnToggle) btnToggle.textContent = 'Mostra il nome';
+      }
+      function setReveal(visible) {
+        if (visible) {
+          const curIdx = state.order[state.index];
+          const recipient = state.recipients[curIdx];
+          result.textContent = recipient;
+          result.classList.remove('hidden');
+          resultLine.classList.remove('hidden');
+          // Aggiorna etichetta del tasto per passare il dispositivo
+          const nextPos = state.index + 1;
+          const nextName = state.participants[state.order[nextPos]];
+          if (nextName) {
+            btnNext.textContent = `Passa il dispositivo a ${nextName}`;
+          } else {
+            btnNext.textContent = 'Concludi';
+          }
+          btnNext.classList.remove('hidden');
+          btnToggle.textContent = 'Nascondi nome';
+        } else {
+          result.classList.add('hidden');
+          resultLine.classList.add('hidden');
+          btnNext.classList.add('hidden');
+          btnToggle.textContent = 'Mostra il nome';
+        }
+      }
+
+      // Eventi
+      function generateForms(n) {
+        peopleList.innerHTML = '';
+        const count = Math.max(0, Math.min(200, Number(n) || 0));
+        for (let i = 0; i < count; i++) {
+          const wrap = document.createElement('div');
+          wrap.className = 'row';
+          const label = document.createElement('label');
+          label.textContent = `Persona ${i + 1}`;
+          label.setAttribute('for', `person-${i}`);
+          const input = document.createElement('input');
+          input.type = 'text';
+          input.id = `person-${i}`;
+          input.className = 'person-name';
+          input.placeholder = 'Nome';
+          wrap.appendChild(label);
+          wrap.appendChild(input);
+          peopleList.appendChild(wrap);
+        }
+      }
+
+      btnContinue.addEventListener('click', () => {
+        const n = Number(countInput.value);
+        if (!n || n < 2) {
+          errorBox.textContent = 'Inserisci un numero valido (minimo 2).';
+          errorBox.classList.remove('hidden');
+          vibrate(60);
+          return;
+        }
+        errorBox.classList.add('hidden');
+        if (errorBoxForms) errorBoxForms.classList.add('hidden');
+        generateForms(n);
+        setupIntro.classList.add('hidden');
+        setupForms.classList.remove('hidden');
+      });
+
+      btnGenerate.addEventListener('click', () => {
+        // Leggi i nomi dai campi generati
+        const inputs = Array.from(document.querySelectorAll('.person-name'));
+        const names = inputs.map(i => i.value.trim()).filter(Boolean);
+        // reset evidenziazione
+        inputs.forEach(i => i.classList.remove('error-field'));
+        if (inputs.length < 2) {
+          errorBoxForms.textContent = 'Genera prima i moduli con almeno 2 persone.';
+          errorBoxForms.classList.remove('hidden');
+          errorBoxForms.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          vibrate(60);
+          return;
+        }
+        if (names.length !== inputs.length) {
+          errorBoxForms.textContent = 'Compila tutti i nomi prima di continuare.';
+          errorBoxForms.classList.remove('hidden');
+          // evidenzia vuoti
+          inputs.forEach(i => { if (!i.value.trim()) i.classList.add('error-field'); });
+          errorBoxForms.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          vibrate(60);
+          return;
+        }
+        // dup detection + suggerimenti iniziale cognome
+        const map = new Map(); // nameLower -> array of indices
+        inputs.forEach((inp, idx) => {
+          const key = inp.value.trim().toLowerCase();
+          map.set(key, (map.get(key) || []).concat(idx));
+        });
+        const dups = Array.from(map.entries()).filter(([, idxs]) => idxs.length > 1);
+        if (dups.length > 0) {
+          const suggestions = dups.map(([key, idxs]) => {
+            const base = inputs[idxs[0]].value.trim();
+            const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+            const sug = idxs.map((_, i) => `${base} ${letters[i]}.`).join(', ');
+            // evidenzia i campi duplicati
+            idxs.forEach(i => inputs[i].classList.add('error-field'));
+            return `• "${base}": es. ${sug}`;
+          }).join('<br />');
+          errorBoxForms.innerHTML = 'Attenzione: ci sono nomi duplicati.<br />Suggerimento: aggiungi l\'iniziale del cognome per distinguerli.<br />' + suggestions;
+          errorBoxForms.classList.remove('hidden');
+          errorBoxForms.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          vibrate([30, 60, 30]);
+          return;
+        }
+        errorBox.classList.add('hidden');
+        errorBoxForms.classList.add('hidden');
+        state.participants = names;
+        state.recipients = derangement(names);
+        // Ordine di rivelazione random
+        state.order = Array.from({ length: names.length }, (_, i) => i);
+        for (let i = state.order.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [state.order[i], state.order[j]] = [state.order[j], state.order[i]];
+        }
+        state.index = 0;
+        goToReveal();
+        setupHandoff();
+      });
+
+      // rimosso handler demo
+
+      btnReset.addEventListener('click', () => {
+        countInput.value = '';
+        peopleList.innerHTML = '';
+        errorBox.classList.add('hidden');
+        if (errorBoxForms) errorBoxForms.classList.add('hidden');
+        setupForms.classList.add('hidden');
+        setupIntro.classList.remove('hidden');
+      });
+
+      btnIAm.addEventListener('click', () => {
+        setupPeek();
+      });
+
+      btnBackToStart.addEventListener('click', () => {
+        goToSetup();
+      });
+
+      btnToggle.addEventListener('click', () => {
+        const isHidden = resultLine.classList.contains('hidden');
+        if (isHidden) {
+          if (!confirmPending) {
+            confirmPending = true;
+            btnToggle.textContent = 'Sei sicuro?';
+            vibrate(30);
+            return;
+          }
+          setReveal(true);
+          vibrate([15, 60, 15]);
+          resetRevealConfirm();
+        } else {
+          setReveal(false);
+          resetRevealConfirm();
+        }
+      });
+
+      btnNext.addEventListener('click', () => {
+        // Nascondi prima di passare al prossimo
+        setReveal(false);
+
+        state.index += 1;
+        if (state.index >= state.participants.length) {
+          goToDone();
+          return;
+        }
+        setupHandoff();
+      });
+
+      btnRestart.addEventListener('click', () => {
+        countInput.value = '';
+        peopleList.innerHTML = '';
+        state.participants = [];
+        state.recipients = [];
+        state.index = 0;
+        goToSetup();
+      });
+
+      btnBackRecap.addEventListener('click', () => {
+        // Ritorna allo step reveal con la progress bar all'ultima persona
+        state.index = Math.max(0, state.participants.length - 1);
+        goToReveal();
+        setupHandoff();
+      });
+
+      // Avvio
+      if (btnStart) btnStart.addEventListener('click', goToSetup);
+      goToLanding();
+    </script>
+  </body>
+  </html>
