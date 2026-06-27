@@ -3,6 +3,9 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0b1020" />
+    <meta name="description" content="Secret Santa senza email: estrazione locale, pass-the-device. Nessun dato inviato online." />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Ctext%20y='.9em'%20font-size='90'%3E%F0%9F%8E%81%3C/text%3E%3C/svg%3E" />
     <title>Secret Santa – Semplice</title>
     <style>
       :root {
@@ -95,6 +98,8 @@
         border-radius: 12px;
         background: #0b1220;
         border: 1px dashed rgba(255,255,255,0.12);
+        max-width: 100%;
+        overflow-wrap: anywhere;
       }
       .step {
         display: grid; gap: 14px; align-items: start;
@@ -203,6 +208,24 @@
         0%, 100% { transform: translateY(0); }
         50% { transform: translateY(-8px); }
       }
+
+      /* Rispetta la preferenza di sistema "riduci animazioni" */
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after {
+          animation-duration: 0.001ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.001ms !important;
+        }
+        .snow, .xmas-bg { display: none; }
+      }
+
+      /* Anello di focus visibile per la navigazione da tastiera */
+      button:focus-visible,
+      input:focus-visible,
+      textarea:focus-visible {
+        outline: 2px solid #93c5fd;
+        outline-offset: 2px;
+      }
     </style>
   </head>
   <body>
@@ -241,7 +264,7 @@
       <section id="step-setup" class="step hidden">
         <div id="setup-intro" class="center">
           <div class="big" style="margin-bottom:8px">Quanti siete nel gruppo?</div>
-          <input id="count" class="big-input" type="number" inputmode="numeric" pattern="[0-9]*" min="2" max="200" placeholder="es. 6" style="max-width:240px; text-align:center; display:block; margin:0 auto;" />
+          <input id="count" class="big-input" type="number" inputmode="numeric" pattern="[0-9]*" min="2" max="200" placeholder="es. 6" aria-label="Quante persone partecipano" style="max-width:240px; text-align:center; display:block; margin:0 auto;" />
           <div class="setup-icon" role="img" aria-label="Gruppo di amici">🧑‍🤝‍🧑</div>
           <div class="spacer"></div>
           <button id="btn-continue" class="green" type="button" style="min-width:160px;">Continua</button>
@@ -321,14 +344,6 @@
         confirmPending = false;
       }
 
-      // Utilità: pulizia testo in array di nomi
-      function parseNames(raw) {
-        return raw
-          .split(/\r?\n|,|;|\t/g)
-          .map(s => s.trim())
-          .filter(s => s.length > 0);
-      }
-
       // Algoritmo di derangement: nessuno riceve se stesso.
       // Metodo: shuffle con fix locale dei punti fissi.
       function derangement(list) {
@@ -395,6 +410,46 @@
         try { if (navigator.vibrate) navigator.vibrate(pattern); } catch (_) {}
       }
 
+      // Sposta il focus in modo affidabile dopo un cambio di vista (utile a chi usa la tastiera)
+      function focusEl(el) {
+        if (!el) return;
+        requestAnimationFrame(() => { try { el.focus(); } catch (_) {} });
+      }
+
+      // Persistenza locale: protegge da un refresh accidentale a metà gioco
+      // (es. pull-to-refresh su mobile). sessionStorage si svuota chiudendo la scheda.
+      const STORAGE_KEY = 'secretSanta:v1';
+      function saveState() {
+        try {
+          if (!state.participants.length) { sessionStorage.removeItem(STORAGE_KEY); return; }
+          sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
+            participants: state.participants,
+            recipients: state.recipients,
+            order: state.order,
+            index: state.index
+          }));
+        } catch (_) {}
+      }
+      function clearSavedState() {
+        try { sessionStorage.removeItem(STORAGE_KEY); } catch (_) {}
+      }
+      function loadState() {
+        try {
+          const raw = sessionStorage.getItem(STORAGE_KEY);
+          if (!raw) return false;
+          const d = JSON.parse(raw);
+          if (!d || !Array.isArray(d.participants) || !Array.isArray(d.recipients) || !Array.isArray(d.order)) return false;
+          const n = d.participants.length;
+          if (n < 2 || d.recipients.length !== n || d.order.length !== n) return false;
+          if (typeof d.index !== 'number' || d.index < 0) return false;
+          state.participants = d.participants;
+          state.recipients = d.recipients;
+          state.order = d.order;
+          state.index = Math.min(d.index, n); // n => gioco concluso
+          return true;
+        } catch (_) { return false; }
+      }
+
       // Navigazione step
       function goToLanding() {
         stepLanding.classList.remove('hidden');
@@ -411,6 +466,7 @@
         if (errorBoxForms) errorBoxForms.classList.add('hidden');
         setupIntro.classList.remove('hidden');
         setupForms.classList.add('hidden');
+        focusEl(countInput);
       }
       function goToReveal() {
         stepSetup.classList.add('hidden');
@@ -446,6 +502,7 @@
         btnNext.classList.add('hidden');
         resetRevealConfirm();
         if (btnToggle) btnToggle.textContent = 'Mostra il nome';
+        focusEl(btnIAm);
       }
       function setupPeek() {
         handoff.classList.add('hidden');
@@ -457,6 +514,7 @@
         btnNext.classList.add('hidden');
         resetRevealConfirm();
         if (btnToggle) btnToggle.textContent = 'Mostra il nome';
+        focusEl(btnToggle);
       }
       function setReveal(visible) {
         if (visible) {
@@ -498,6 +556,12 @@
           input.id = `person-${i}`;
           input.className = 'person-name';
           input.placeholder = 'Nome';
+          input.maxLength = 40;
+          input.autocomplete = 'off';
+          input.setAttribute('autocapitalize', 'words');
+          input.spellcheck = false;
+          // Su mobile: l'ultimo campo mostra "fine", gli altri "successivo"
+          input.setAttribute('enterkeyhint', i === count - 1 ? 'done' : 'next');
           wrap.appendChild(label);
           wrap.appendChild(input);
           peopleList.appendChild(wrap);
@@ -510,6 +574,14 @@
           errorBox.textContent = 'Inserisci un numero valido (minimo 2).';
           errorBox.classList.remove('hidden');
           vibrate(60);
+          focusEl(countInput);
+          return;
+        }
+        if (n > 200) {
+          errorBox.textContent = 'Numero massimo di persone: 200.';
+          errorBox.classList.remove('hidden');
+          vibrate(60);
+          focusEl(countInput);
           return;
         }
         errorBox.classList.add('hidden');
@@ -517,6 +589,25 @@
         generateForms(n);
         setupIntro.classList.add('hidden');
         setupForms.classList.remove('hidden');
+        focusEl(peopleList.querySelector('.person-name'));
+      });
+
+      // Invio sul numero = "Continua"
+      countInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); btnContinue.click(); }
+      });
+
+      // Invio su un campo nome: vai al successivo, oppure crea gli abbinamenti se è l'ultimo
+      peopleList.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter' || !e.target.classList.contains('person-name')) return;
+        e.preventDefault();
+        const inputs = Array.from(peopleList.querySelectorAll('.person-name'));
+        const idx = inputs.indexOf(e.target);
+        if (idx > -1 && idx < inputs.length - 1) {
+          inputs[idx + 1].focus();
+        } else {
+          btnGenerate.click();
+        }
       });
 
       btnGenerate.addEventListener('click', () => {
@@ -549,15 +640,23 @@
         });
         const dups = Array.from(map.entries()).filter(([, idxs]) => idxs.length > 1);
         if (dups.length > 0) {
-          const suggestions = dups.map(([key, idxs]) => {
+          // Costruzione via DOM/textContent: i nomi utente non vengono mai interpretati come HTML.
+          errorBoxForms.textContent = '';
+          const head = document.createElement('div');
+          head.textContent = 'Attenzione: ci sono nomi duplicati.';
+          const tip = document.createElement('div');
+          tip.textContent = 'Suggerimento: aggiungi l\'iniziale del cognome per distinguerli.';
+          errorBoxForms.appendChild(head);
+          errorBoxForms.appendChild(tip);
+          const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+          dups.forEach(([, idxs]) => {
             const base = inputs[idxs[0]].value.trim();
-            const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
-            const sug = idxs.map((_, i) => `${base} ${letters[i]}.`).join(', ');
-            // evidenzia i campi duplicati
+            const sug = idxs.map((_, i) => `${base} ${letters[i] || (i + 1)}.`).join(', ');
             idxs.forEach(i => inputs[i].classList.add('error-field'));
-            return `• "${base}": es. ${sug}`;
-          }).join('<br />');
-          errorBoxForms.innerHTML = 'Attenzione: ci sono nomi duplicati.<br />Suggerimento: aggiungi l\'iniziale del cognome per distinguerli.<br />' + suggestions;
+            const line = document.createElement('div');
+            line.textContent = `• "${base}": es. ${sug}`;
+            errorBoxForms.appendChild(line);
+          });
           errorBoxForms.classList.remove('hidden');
           errorBoxForms.scrollIntoView({ behavior: 'smooth', block: 'center' });
           vibrate([30, 60, 30]);
@@ -574,6 +673,7 @@
           [state.order[i], state.order[j]] = [state.order[j], state.order[i]];
         }
         state.index = 0;
+        saveState();
         goToReveal();
         setupHandoff();
       });
@@ -587,6 +687,8 @@
         if (errorBoxForms) errorBoxForms.classList.add('hidden');
         setupForms.classList.add('hidden');
         setupIntro.classList.remove('hidden');
+        clearSavedState();
+        focusEl(countInput);
       });
 
       btnIAm.addEventListener('click', () => {
@@ -621,9 +723,11 @@
 
         state.index += 1;
         if (state.index >= state.participants.length) {
+          saveState();
           goToDone();
           return;
         }
+        saveState();
         setupHandoff();
       });
 
@@ -632,20 +736,33 @@
         peopleList.innerHTML = '';
         state.participants = [];
         state.recipients = [];
+        state.order = [];
         state.index = 0;
+        clearSavedState();
         goToSetup();
       });
 
       btnBackRecap.addEventListener('click', () => {
         // Ritorna allo step reveal con la progress bar all'ultima persona
         state.index = Math.max(0, state.participants.length - 1);
+        saveState();
         goToReveal();
         setupHandoff();
       });
 
       // Avvio
       if (btnStart) btnStart.addEventListener('click', goToSetup);
-      goToLanding();
+      // Ripristina una partita in corso dopo un refresh accidentale, altrimenti landing.
+      if (loadState()) {
+        if (state.index >= state.participants.length) {
+          goToDone();
+        } else {
+          goToReveal();
+          setupHandoff();
+        }
+      } else {
+        goToLanding();
+      }
     </script>
   </body>
   </html>
